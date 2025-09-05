@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "YMM-REC-Plugin": {
+      "commandName": "Project"
+    },
+    "プロファイル 1": {
+      "commandName": "Executable",
+      "executablePath": "F:\\YukkuriMovieMaker_v4_Lite\\YukkuriMovieMaker.exe"
+    }
+  }
+}
