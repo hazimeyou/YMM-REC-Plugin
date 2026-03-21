@@ -4,6 +4,8 @@ using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
 using YMM_REC_Plugin.Models;
+using YukkuriMovieMaker.Project;
+using YukkuriMovieMaker.Project.Items;
 
 namespace YMM_REC_Plugin.Services
 {
@@ -22,16 +24,37 @@ namespace YMM_REC_Plugin.Services
 
             return dispatcher.InvokeAsync(() =>
             {
+                var timeline = ToolViewModel.TimelineInstance;
+                if (timeline is not null)
+                {
+                    InsertWithTimeline(timeline, recordedFile.FilePath);
+                    return;
+                }
+
                 var mainViewModel = Application.Current?.MainWindow?.DataContext
                     ?? throw new InvalidOperationException("MainViewModel を取得できません。");
 
-                var timeline = GetActiveTimeline(mainViewModel)
+                var fallbackTimeline = GetActiveTimeline(mainViewModel)
                     ?? throw new InvalidOperationException("タイムラインを取得できません。");
 
-                var currentFrame = GetCurrentFrame(timeline);
+                var currentFrame = GetCurrentFrame(fallbackTimeline);
                 var audioItem = CreateAudioItem(recordedFile.FilePath, currentFrame);
-                TryAddItem(timeline, audioItem, currentFrame);
+                TryAddItem(fallbackTimeline, audioItem, currentFrame);
             }).Task;
+        }
+
+        private static void InsertWithTimeline(Timeline timeline, string filePath)
+        {
+            var frame = timeline.CurrentFrame;
+            var audioItem = new AudioItem(filePath)
+            {
+                Frame = frame,
+                Layer = 0
+            };
+
+            var added = timeline.TryAddItems(new IItem[] { audioItem }, audioItem.Frame, audioItem.Layer);
+            if (!added)
+                throw new InvalidOperationException("タイムラインへの音声追加に失敗しました。");
         }
 
         private static object? GetActiveTimeline(object mainViewModel)
@@ -103,12 +126,12 @@ namespace YMM_REC_Plugin.Services
                 "TryAddItems",
                 BindingFlags.Instance | BindingFlags.Public,
                 binder: null,
-                types: new[] { itemArray.GetType(), typeof(int), typeof(int), typeof(bool) },
+                types: new[] { itemArray.GetType(), typeof(int), typeof(int) },
                 modifiers: null);
 
             if (tryAddItems is not null)
             {
-                var added = (bool)tryAddItems.Invoke(timeline, new object[] { itemArray, frame, 0, false })!;
+                var added = (bool)tryAddItems.Invoke(timeline, new object[] { itemArray, frame, 0 })!;
                 if (!added)
                     throw new InvalidOperationException("タイムラインへの音声追加に失敗しました。");
                 return;

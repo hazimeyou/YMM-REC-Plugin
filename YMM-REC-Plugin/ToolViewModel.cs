@@ -5,10 +5,12 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using YMM_REC_Plugin.Models;
 using YMM_REC_Plugin.Services;
+using YukkuriMovieMaker.Plugin;
+using YukkuriMovieMaker.Project;
 
 namespace YMM_REC_Plugin
 {
-    public class ToolViewModel : INotifyPropertyChanged
+    public class ToolViewModel : INotifyPropertyChanged, ITimelineToolViewModel
     {
         private readonly RecordingService recordingService;
         private readonly TimelineInsertService timelineInsertService;
@@ -65,6 +67,9 @@ namespace YMM_REC_Plugin
         }
 
         public bool IsRecording => recordingService.IsRecording;
+
+        public static Timeline? TimelineInstance { get; private set; }
+        public Timeline Timeline { get; set; } = null!;
 
         public ToolViewModel()
         {
@@ -189,6 +194,11 @@ namespace YMM_REC_Plugin
         {
             OnPropertyChanged(nameof(IsRecording));
             RaiseCommandStates();
+        }
+
+        public void SetTimelineToolInfo(TimelineToolInfo info)
+        {
+            TimelineInstance = info.Timeline;
         }
 
         private void RaiseCommandStates()
