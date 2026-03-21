@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
+using NAudio.Wave;
 using YMM_REC_Plugin.Models;
 using YukkuriMovieMaker.Project;
 using YukkuriMovieMaker.Project.Items;
@@ -38,23 +39,88 @@ namespace YMM_REC_Plugin.Services
                     ?? throw new InvalidOperationException("タイムラインを取得できません。");
 
                 var currentFrame = GetCurrentFrame(fallbackTimeline);
-                var audioItem = CreateAudioItem(recordedFile.FilePath, currentFrame);
-                TryAddItem(fallbackTimeline, audioItem, currentFrame);
+                var length = GetLengthFrames(fallbackTimeline, recordedFile.FilePath);
+                var audioItem = CreateAudioItem(recordedFile.FilePath, currentFrame, length);
+                TryAddItem(fallbackTimeline, audioItem, currentFrame, length);
             }).Task;
         }
 
         private static void InsertWithTimeline(Timeline timeline, string filePath)
         {
             var frame = timeline.CurrentFrame;
+            var length = GetLengthFrames(timeline, filePath);
             var audioItem = new AudioItem(filePath)
             {
                 Frame = frame,
-                Layer = 0
+                Layer = 0,
+                Length = length
             };
 
             var added = timeline.TryAddItems(new IItem[] { audioItem }, audioItem.Frame, audioItem.Layer);
             if (!added)
                 throw new InvalidOperationException("タイムラインへの音声追加に失敗しました。");
+        }
+
+        private static int GetLengthFrames(object timeline, string filePath)
+        {
+            var fps = GetTimelineFps(timeline, fallbackFps: 60.0);
+            var durationSeconds = GetAudioDurationSeconds(filePath);
+            var frames = (int)Math.Round(durationSeconds * fps, MidpointRounding.AwayFromZero);
+            return Math.Max(1, frames);
+        }
+
+        private static double GetAudioDurationSeconds(string filePath)
+        {
+            using var reader = new WaveFileReader(filePath);
+            return reader.TotalTime.TotalSeconds;
+        }
+
+        private static double GetTimelineFps(object timeline, double fallbackFps)
+        {
+            try
+            {
+                var videoInfoProperty = timeline.GetType().GetProperty("VideoInfo", BindingFlags.Public | BindingFlags.Instance);
+                var videoInfo = videoInfoProperty?.GetValue(timeline);
+                if (videoInfo is not null)
+                {
+                    var fpsFromVideoInfo = GetPropertyDouble(videoInfo, "FPS");
+                    if (fpsFromVideoInfo > 0)
+                        return fpsFromVideoInfo;
+                }
+
+                var fps = GetPropertyDouble(timeline, "FPS");
+                if (fps > 0)
+                    return fps;
+
+                fps = GetPropertyDouble(timeline, "FrameRate");
+                if (fps > 0)
+                    return fps;
+            }
+            catch
+            {
+                // fallback
+            }
+
+            return fallbackFps;
+        }
+
+        private static double GetPropertyDouble(object instance, string propertyName)
+        {
+            var property = instance.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+            if (property is null)
+                return 0;
+
+            var value = property.GetValue(instance);
+            return value switch
+            {
+                double d => d,
+                float f => f,
+                decimal m => (double)m,
+                int i => i,
+                long l => l,
+                string s when double.TryParse(s, out var parsed) => parsed,
+                _ => 0
+            };
         }
 
         private static object? GetActiveTimeline(object mainViewModel)
@@ -89,7 +155,7 @@ namespace YMM_REC_Plugin.Services
                 ?? throw new InvalidOperationException("現在フレームを取得できません。"));
         }
 
-        private static object CreateAudioItem(string filePath, int frame)
+        private static object CreateAudioItem(string filePath, int frame, int length)
         {
             var audioItemType = Type.GetType("YukkuriMovieMaker.Project.Items.AudioItem, YukkuriMovieMaker")
                 ?? throw new InvalidOperationException("AudioItem 型を取得できません。");
@@ -110,10 +176,11 @@ namespace YMM_REC_Plugin.Services
 
             audioItemType.GetProperty("Frame")?.SetValue(audioItem, frame);
             audioItemType.GetProperty("Layer")?.SetValue(audioItem, 0);
+            audioItemType.GetProperty("Length")?.SetValue(audioItem, length);
             return audioItem;
         }
 
-        private static void TryAddItem(object timeline, object audioItem, int frame)
+        private static void TryAddItem(object timeline, object audioItem, int frame, int length)
         {
             var timelineType = timeline.GetType();
             var itemInterfaceType = timelineType.Assembly.GetType("YukkuriMovieMaker.Project.Items.IItem")
