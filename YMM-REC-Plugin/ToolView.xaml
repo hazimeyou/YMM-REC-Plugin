@@ -4,58 +4,47 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="200" d:DesignWidth="400">
+             d:DesignHeight="240"
+             d:DesignWidth="420">
+    <Grid Background="White" Margin="8">
+        <StackPanel Margin="4">
+            <TextBlock Text="録音デバイス" Margin="2,2,2,0" />
+            <DockPanel Margin="2">
+                <Button Content="再読込"
+                        Command="{Binding RefreshDevicesCommand}"
+                        Width="70"
+                        Margin="8,0,0,0"
+                        DockPanel.Dock="Right" />
+                <ComboBox ItemsSource="{Binding AvailableDevices}"
+                          SelectedItem="{Binding SelectedDevice}"
+                          MinWidth="260" />
+            </DockPanel>
 
-	<Grid Background="White" Margin="5">
-		<StackPanel Margin="5">
+            <TextBlock Text="録音仕様: WAV / 48000 Hz / 16 bit / Mono" Margin="2,10,2,0" />
+            <TextBlock Text="{Binding RecordsDirectory, StringFormat=保存先: {0}}" TextWrapping="Wrap" Margin="2,4,2,0" />
 
-			<!-- マイク選択 -->
-			<ComboBox ItemsSource="{Binding AvailableDevices}"
-					  SelectedItem="{Binding SelectedDevice}"
-					  Width="250"
-					  Margin="2"/>
+            <StackPanel Orientation="Horizontal" Margin="2,12,2,0">
+                <Button Content="録音開始"
+                        Command="{Binding StartRecordingCommand}"
+                        Width="120"
+                        Margin="0,0,8,0" />
+                <Button Content="録音停止"
+                        Command="{Binding StopRecordingCommand}"
+                        Width="120" />
+            </StackPanel>
 
-			<!-- サンプリングレート -->
-			<StackPanel Orientation="Horizontal" Margin="2">
-				<TextBlock Text="サンプリングレート:" VerticalAlignment="Center"/>
-				<ComboBox ItemsSource="{Binding SampleRates}" SelectedItem="{Binding SelectedSampleRate}" Width="100" Margin="5,0"/>
-				<TextBlock Text="Hz" VerticalAlignment="Center" Margin="2,0"/>
-			</StackPanel>
+            <TextBlock Text="{Binding RecordingStatus}"
+                       Foreground="Red"
+                       FontWeight="Bold"
+                       TextWrapping="Wrap"
+                       Margin="2,12,2,0" />
 
-			<!-- ビット深度 -->
-			<StackPanel Orientation="Horizontal" Margin="2">
-				<TextBlock Text="ビット:" VerticalAlignment="Center"/>
-				<ComboBox ItemsSource="{Binding BitDepths}" SelectedItem="{Binding SelectedBitDepth}" Width="100" Margin="5,0"/>
-				<TextBlock Text="bit" VerticalAlignment="Center" Margin="2,0"/>
-			</StackPanel>
-
-			<!-- チャンネル -->
-			<StackPanel Orientation="Horizontal" Margin="2">
-				<TextBlock Text="チャンネル:" VerticalAlignment="Center"/>
-				<ComboBox ItemsSource="{Binding Channels}" SelectedItem="{Binding SelectedChannel}" Width="100" Margin="5,0"/>
-			</StackPanel>
-
-			<!-- 録音操作ボタン -->
-			<StackPanel Orientation="Horizontal" Margin="2">
-				<Button Content="録音開始" Command="{Binding StartRecordingCommand}" Width="100" Margin="2"/>
-				<Button Content="録音停止" Command="{Binding StopRecordingCommand}" Width="100" Margin="2"/>
-				<Button Content="保存先指定" Command="{Binding ChooseSavePathCommand}" Width="100" Margin="2"/>
-			</StackPanel>
-
-			<!-- 録音中ステータス -->
-			<TextBlock Text="{Binding RecordingStatus}" Foreground="Red" FontWeight="Bold" Margin="2"/>
-
-			<!-- 音量メーター -->
-			<ProgressBar Minimum="0" Maximum="1" Value="{Binding CurrentVolume}" Height="20" Margin="2"/>
-
-			<!-- 録音音量 -->
-			<StackPanel Orientation="Horizontal" Margin="2">
-				<TextBlock Text="録音音量:" VerticalAlignment="Center"/>
-				<Slider Minimum="0" Maximum="10" Value="{Binding InputVolume}" Width="200" Margin="5,0"/>
-				<TextBlock Text="{Binding InputVolume, StringFormat=F2}" VerticalAlignment="Center" Margin="5,0"/>
-			</StackPanel>
-		</StackPanel>
-
-
-	</Grid>
+            <TextBlock Text="入力レベル" Margin="2,10,2,0" />
+            <ProgressBar Minimum="0"
+                         Maximum="1"
+                         Value="{Binding CurrentVolume}"
+                         Height="18"
+                         Margin="2,4,2,0" />
+        </StackPanel>
+    </Grid>
 </UserControl>

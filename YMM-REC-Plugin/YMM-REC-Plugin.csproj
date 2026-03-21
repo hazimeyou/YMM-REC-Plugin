@@ -1,78 +1,47 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-	  <TargetFramework>net9.0-windows</TargetFramework>
-    <RootNamespace>ymm_projectlist</RootNamespace>
-    <Nullable>enable</Nullable>
-    <UseWPF>true</UseWPF>
-    <ImplicitUsings>enable</ImplicitUsings>
+	<PropertyGroup>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<RootNamespace>YMM_REC_Plugin</RootNamespace>
+		<Nullable>enable</Nullable>
+		<UseWPF>true</UseWPF>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Version Condition="'$(Version)'==''">0.0.0</Version>
+		<Platforms>AnyCPU;x64</Platforms>
+		<PlatformTarget>x64</PlatformTarget>
+	</PropertyGroup>
 
-    <!-- バージョン番号を保存するファイル -->
-    <BuildNumberFile>$(MSBuildProjectDirectory)\build_number.txt</BuildNumberFile>
+	<ItemGroup Condition="Exists('$(YMM4DirPath)\YukkuriMovieMaker.Plugin.dll')">
+		<Reference Include="YukkuriMovieMaker.Plugin" HintPath="$(YMM4DirPath)\YukkuriMovieMaker.Plugin.dll" Private="false" ExcludeAssets="runtime" />
+		<Reference Include="YukkuriMovieMaker.Controls" HintPath="$(YMM4DirPath)\YukkuriMovieMaker.Controls.dll" Private="false" ExcludeAssets="runtime" />
+		<Reference Include="YukkuriMovieMaker.Controls" HintPath="$(YMM4DirPath)\YukkuriMovieMaker.dll" Private="false" ExcludeAssets="runtime" />
+	</ItemGroup>
 
-    <!-- PathManager.AppDirectory の NAudio.dll 参照 -->
-    <NAudioPath>F:\YukkuriMovieMaker_v4_Lite\NAudio.dll</NAudioPath>
-  </PropertyGroup>
+	<ItemGroup Condition="!Exists('$(YMM4DirPath)\YukkuriMovieMaker.Plugin.dll')">
+		<Reference Include="YukkuriMovieMaker.Plugin" HintPath="..\libs\YukkuriMovieMaker.Plugin.dll" Private="false" ExcludeAssets="runtime" />
+		<Reference Include="YukkuriMovieMaker.Controls" HintPath="..\libs\YukkuriMovieMaker.Controls.dll" Private="false" ExcludeAssets="runtime" />
+		<Reference Include="YukkuriMovieMaker.Controls" HintPath="..\libs\YukkuriMovieMaker.dll" Private="false" ExcludeAssets="runtime" />
+	</ItemGroup>
 
-  <!-- ビルド番号の読み込みとインクリメント -->
-  <Target Name="IncrementBuildNumber" BeforeTargets="BeforeBuild">
-    <ReadLinesFromFile File="$(BuildNumberFile)">
-      <Output TaskParameter="Lines" ItemName="BuildNumberLines" />
-    </ReadLinesFromFile>
+	<ItemGroup>
+		<PackageReference Include="NAudio" Version="2.2.1" />
+		<PackageReference Include="System.IO.Ports" Version="10.0.2" />
+	</ItemGroup>
 
-    <PropertyGroup>
-      <CurrentBuildNumber Condition=" '@(BuildNumberLines)' == '' ">0</CurrentBuildNumber>
-      <CurrentBuildNumber Condition=" '@(BuildNumberLines)' != '' ">@(BuildNumberLines)</CurrentBuildNumber>
-      <NewBuildNumber>$([MSBuild]::Add($(CurrentBuildNumber), 1))</NewBuildNumber>
-    </PropertyGroup>
+	<Target Name="CopyToYMM4" AfterTargets="Build" Condition="Exists('$(YMM4DirPath)')">
+		<PropertyGroup>
+			<PluginOutputDir>
+				$(YMM4DirPath)\user\plugin\$(AssemblyName)
+			</PluginOutputDir>
+		</PropertyGroup>
 
-    <WriteLinesToFile File="$(BuildNumberFile)" Lines="$(NewBuildNumber)" Overwrite="true" />
-  </Target>
+		<MakeDir Directories="$(PluginOutputDir)" Condition="!Exists('$(PluginOutputDir)')" />
 
-  <!-- DLLをコピー -->
-  <Target Name="CopyPluginDll" AfterTargets="Build">
-    <Copy SourceFiles="$(TargetDir)YMM-REC-Plugin.dll" 
-          DestinationFolder="F:\YukkuriMovieMaker_v4_Lite\user\plugin\YMM-REC-Plugin" 
-          SkipUnchangedFiles="true" />
-  </Target>
+		<ItemGroup>
+			<PluginFiles Include="$(TargetDir)$(AssemblyName).dll" />
+		</ItemGroup>
 
-  <!-- プロジェクトフォルダを番号付きフォルダに丸ごとコピー -->
-  <Target Name="CopyWholeProject" AfterTargets="Build" DependsOnTargets="IncrementBuildNumber">
-    <PropertyGroup>
-      <BackupFolder>F:\RECcode\$(NewBuildNumber)</BackupFolder>
-    </PropertyGroup>
-    <MakeDir Directories="$(BackupFolder)" />
-    <Exec Command="xcopy &quot;$(MSBuildProjectDirectory)\*&quot; &quot;$(BackupFolder)\&quot; /E /I /Y &amp;&amp; exit 0" />
-  </Target>
-
-  <ItemGroup>
-    <Reference Include="YukkuriMovieMaker">
-      <HintPath>F:\YukkuriMovieMaker_v4_Lite\YukkuriMovieMaker.dll</HintPath>
-    </Reference>
-    <Reference Include="YukkuriMovieMaker.Controls">
-      <HintPath>F:\YukkuriMovieMaker_v4_Lite\YukkuriMovieMaker.Controls.dll</HintPath>
-    </Reference>
-    <Reference Include="YukkuriMovieMaker.Plugin">
-      <HintPath>F:\YukkuriMovieMaker_v4_Lite\YukkuriMovieMaker.Plugin.dll</HintPath>
-    </Reference>
-    <Reference Include="YukkuriMovieMaker.Plugin.Community">
-      <HintPath>F:\YukkuriMovieMaker_v4_Lite\YukkuriMovieMaker.Plugin.Community.dll</HintPath>
-    </Reference>
-
-    <!-- NAudio.dll を直接参照 -->
-	  <Reference Include="NAudio">
-		  <HintPath>F:\YukkuriMovieMaker_v4_Lite\NAudio.dll</HintPath>
-		  <Private>true</Private>
-	  </Reference>
-	  <Reference Include="NAudio.Core">
-		  <HintPath>F:\YukkuriMovieMaker_v4_Lite\NAudio.Core.dll</HintPath>
-		  <Private>true</Private>
-	  </Reference>
-	  <Reference Include="NAudio.WinMM">
-		  <HintPath>F:\YukkuriMovieMaker_v4_Lite\NAudio.WinMM.dll</HintPath>
-		  <Private>true</Private>
-	  </Reference>
-
-  </ItemGroup>
+		<Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(PluginOutputDir)" />
+	</Target>
 
 </Project>

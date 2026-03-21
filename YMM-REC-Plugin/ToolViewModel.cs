@@ -1,170 +1,208 @@
-﻿using NAudio.Wave;
-using Microsoft.Win32;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Input;
+using YMM_REC_Plugin.Models;
+using YMM_REC_Plugin.Services;
 
 namespace YMM_REC_Plugin
 {
     public class ToolViewModel : INotifyPropertyChanged
     {
-        public ObservableCollection<string> AvailableDevices { get; } = new ObservableCollection<string>();
-        public ObservableCollection<int> SampleRates { get; } = new ObservableCollection<int> { 8000, 16000, 22050, 44100, 48000, 96000 };
-        public ObservableCollection<int> BitDepths { get; } = new ObservableCollection<int> { 8, 16, 24, 32 };
-        public ObservableCollection<int> Channels { get; } = new ObservableCollection<int> { 1, 2 };
+        private readonly RecordingService recordingService;
+        private readonly TimelineInsertService timelineInsertService;
 
-        private string selectedDevice;
-        public string SelectedDevice { get => selectedDevice; set { selectedDevice = value; OnPropertyChanged(nameof(SelectedDevice)); } }
-
-        private int selectedSampleRate = 44100;
-        public int SelectedSampleRate { get => selectedSampleRate; set { selectedSampleRate = value; OnPropertyChanged(nameof(SelectedSampleRate)); } }
-
-        private int selectedBitDepth = 16;
-        public int SelectedBitDepth { get => selectedBitDepth; set { selectedBitDepth = value; OnPropertyChanged(nameof(SelectedBitDepth)); } }
-
-        private int selectedChannel = 1;
-        public int SelectedChannel { get => selectedChannel; set { selectedChannel = value; OnPropertyChanged(nameof(SelectedChannel)); } }
-
-        private string recordingStatus = "停止中";
-        public string RecordingStatus { get => recordingStatus; set { recordingStatus = value; OnPropertyChanged(nameof(RecordingStatus)); } }
-
-        private double currentVolume;
-        public double CurrentVolume { get => currentVolume; set { currentVolume = value; OnPropertyChanged(nameof(CurrentVolume)); } }
-
-        private double inputVolume = 1.0;
-        public double InputVolume { get => inputVolume; set { inputVolume = value; OnPropertyChanged(nameof(InputVolume)); } }
+        public ObservableCollection<string> AvailableDevices { get; } = new();
 
         public ICommand StartRecordingCommand { get; }
         public ICommand StopRecordingCommand { get; }
-        public ICommand ChooseSavePathCommand { get; }
+        public ICommand RefreshDevicesCommand { get; }
 
-        private WaveInEvent waveIn;
-        private WaveFileWriter writer;
-        private string currentFilePath;
+        private string? selectedDevice;
+        public string? SelectedDevice
+        {
+            get => selectedDevice;
+            set
+            {
+                selectedDevice = value;
+                OnPropertyChanged(nameof(SelectedDevice));
+                RaiseCommandStates();
+            }
+        }
+
+        private string recordingStatus = "停止中";
+        public string RecordingStatus
+        {
+            get => recordingStatus;
+            set
+            {
+                recordingStatus = value;
+                OnPropertyChanged(nameof(RecordingStatus));
+            }
+        }
+
+        private double currentVolume;
+        public double CurrentVolume
+        {
+            get => currentVolume;
+            set
+            {
+                currentVolume = value;
+                OnPropertyChanged(nameof(CurrentVolume));
+            }
+        }
+
+        private string recordsDirectory = string.Empty;
+        public string RecordsDirectory
+        {
+            get => recordsDirectory;
+            set
+            {
+                recordsDirectory = value;
+                OnPropertyChanged(nameof(RecordsDirectory));
+            }
+        }
+
+        public bool IsRecording => recordingService.IsRecording;
 
         public ToolViewModel()
         {
-            StartRecordingCommand = new RelayCommand(StartRecording);
-            StopRecordingCommand = new RelayCommand(StopRecording);
-            ChooseSavePathCommand = new RelayCommand(ChooseSavePath);
+            var recordPathService = new RecordPathService();
+            recordingService = new RecordingService(recordPathService);
+            timelineInsertService = new TimelineInsertService();
 
+            recordingService.DataAvailable += OnRecordingDataAvailable;
+            recordingService.RecordingStateChanged += OnRecordingStateChanged;
+
+            StartRecordingCommand = new RelayCommand(StartRecording, CanStartRecording);
+            StopRecordingCommand = new RelayCommand(StopRecording, CanStopRecording);
+            RefreshDevicesCommand = new RelayCommand(RefreshMicrophones);
+
+            RecordsDirectory = recordPathService.GetRecordsDirectory();
             RefreshMicrophones();
         }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         public void RefreshMicrophones()
         {
             AvailableDevices.Clear();
-            for (int n = 0; n < WaveInEvent.DeviceCount; n++)
+
+            foreach (var deviceName in recordingService.GetAvailableDeviceNames())
             {
-                var deviceInfo = WaveInEvent.GetCapabilities(n);
-                AvailableDevices.Add(deviceInfo.ProductName);
+                AvailableDevices.Add(deviceName);
             }
-            if (AvailableDevices.Count > 0) SelectedDevice = AvailableDevices[0];
+
+            if (AvailableDevices.Count > 0)
+            {
+                if (SelectedDevice is null || !AvailableDevices.Contains(SelectedDevice))
+                    SelectedDevice = AvailableDevices[0];
+            }
+            else
+            {
+                SelectedDevice = null;
+                RecordingStatus = "録音デバイスが見つかりません。";
+            }
+
+            RaiseCommandStates();
         }
 
-        private void ChooseSavePath()
-        {
-            SaveFileDialog dlg = new SaveFileDialog
-            {
-                Filter = "WAV ファイル (*.wav)|*.wav",
-                FileName = $"Recording_{DateTime.Now:yyyyMMdd_HHmmss}.wav"
-            };
-            if (dlg.ShowDialog() == true)
-            {
-                currentFilePath = dlg.FileName;
-                RecordingStatus = $"保存先: {currentFilePath}";
-            }
-        }
+        private bool CanStartRecording() => !IsRecording && !string.IsNullOrWhiteSpace(SelectedDevice);
+
+        private bool CanStopRecording() => IsRecording;
 
         private void StartRecording()
         {
-            if (SelectedDevice == null) return;
-
-            int deviceIndex = AvailableDevices.IndexOf(SelectedDevice);
-            if (deviceIndex < 0) return;
+            if (SelectedDevice is null)
+            {
+                RecordingStatus = "録音デバイスを選択してください。";
+                return;
+            }
 
             try
             {
-                waveIn = new WaveInEvent
-                {
-                    DeviceNumber = deviceIndex,
-                    WaveFormat = new WaveFormat(SelectedSampleRate, SelectedBitDepth, SelectedChannel)
-                };
-
-                if (string.IsNullOrEmpty(currentFilePath))
-                    currentFilePath = Path.Combine(Path.GetTempPath(), $"Recording_{DateTime.Now:yyyyMMdd_HHmmss}.wav");
-
-                writer = new WaveFileWriter(currentFilePath, waveIn.WaveFormat);
-
-                waveIn.DataAvailable += (s, a) =>
-                {
-                    if (writer != null)
-                    {
-                        // 音量調整
-                        byte[] buffer = new byte[a.BytesRecorded];
-                        Array.Copy(a.Buffer, buffer, a.BytesRecorded);
-
-                        for (int i = 0; i < buffer.Length; i += 2)
-                        {
-                            short sample = (short)((buffer[i + 1] << 8) | buffer[i]);
-                            double amplified = sample * InputVolume;
-                            if (amplified > short.MaxValue) amplified = short.MaxValue;
-                            if (amplified < short.MinValue) amplified = short.MinValue;
-                            short outputSample = (short)amplified;
-                            buffer[i] = (byte)(outputSample & 0xFF);
-                            buffer[i + 1] = (byte)((outputSample >> 8) & 0xFF);
-                        }
-
-                        writer.Write(buffer, 0, buffer.Length);
-
-                        // 音量メーター
-                        double sum = 0;
-                        for (int i = 0; i < buffer.Length; i += 2)
-                        {
-                            short sample = (short)((buffer[i + 1] << 8) | buffer[i]);
-                            double sample32 = sample / 32768.0;
-                            sum += sample32 * sample32;
-                        }
-                        CurrentVolume = Math.Sqrt(sum / (buffer.Length / 2));
-                    }
-                };
-
-                waveIn.RecordingStopped += (s, a) => StopRecordingInternal();
-
-                waveIn.StartRecording();
-                RecordingStatus = $"録音中… ({currentFilePath})";
+                recordingService.StartRecording(SelectedDevice);
+                RecordingStatus = $"録音中... 保存先: {RecordsDirectory}";
             }
             catch (Exception ex)
             {
-                RecordingStatus = $"録音開始エラー: {ex.Message}";
+                RecordingStatus = $"録音開始に失敗しました: {ex.Message}";
+                RaiseCommandStates();
             }
         }
 
-        private void StopRecording() => waveIn?.StopRecording();
-
-        private void StopRecordingInternal()
+        private async void StopRecording()
         {
+            await StopRecordingAsync();
+        }
+
+        private async Task StopRecordingAsync()
+        {
+            RecordedFileInfo? recordedFile;
+
             try
             {
-                writer?.Flush();
-                writer?.Dispose();
-                writer = null;
-
-                waveIn?.Dispose();
-                waveIn = null;
-
-                RecordingStatus = $"停止中. 録音ファイル: {currentFilePath}";
-                CurrentVolume = 0;
+                recordedFile = recordingService.StopRecording();
             }
             catch (Exception ex)
             {
-                RecordingStatus = $"停止時エラー: {ex.Message}";
+                RecordingStatus = $"録音停止に失敗しました: {ex.Message}";
+                RaiseCommandStates();
+                return;
+            }
+
+            CurrentVolume = 0;
+            RaiseCommandStates();
+
+            if (recordedFile is null)
+            {
+                RecordingStatus = "録音データがないため保存・追加を行いませんでした。";
+                return;
+            }
+
+            if (recordedFile.DataLength <= 0)
+            {
+                RecordingStatus = $"録音データ長が 0 のため追加しませんでした: {recordedFile.FilePath}";
+                return;
+            }
+
+            RecordingStatus = $"録音停止。タイムラインへ追加中... {recordedFile.FilePath}";
+
+            try
+            {
+                await timelineInsertService.InsertAsync(recordedFile);
+                RecordingStatus = $"録音停止。タイムラインへ追加しました: {recordedFile.FilePath}";
+            }
+            catch (Exception ex)
+            {
+                RecordingStatus = $"タイムライン追加に失敗しました: {ex.Message}";
             }
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
-        private void OnPropertyChanged(string prop) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
+        private void OnRecordingDataAvailable(object? sender, RecordingDataEventArgs e)
+        {
+            CurrentVolume = e.Volume;
+        }
+
+        private void OnRecordingStateChanged(object? sender, EventArgs e)
+        {
+            OnPropertyChanged(nameof(IsRecording));
+            RaiseCommandStates();
+        }
+
+        private void RaiseCommandStates()
+        {
+            if (StartRecordingCommand is RelayCommand start)
+                start.RaiseCanExecuteChanged();
+
+            if (StopRecordingCommand is RelayCommand stop)
+                stop.RaiseCanExecuteChanged();
+        }
+
+        private void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 }
