@@ -1,9 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
-using YMM_REC_Plugin.Models;
 using YMM_REC_Plugin.Services;
 using YukkuriMovieMaker.Plugin;
 using YukkuriMovieMaker.Project;
@@ -20,6 +19,7 @@ namespace YMM_REC_Plugin
         public ICommand StartRecordingCommand { get; }
         public ICommand StopRecordingCommand { get; }
         public ICommand RefreshDevicesCommand { get; }
+        public ICommand OpenRecordingWindowCommand { get; }
 
         private string? selectedDevice;
         public string? SelectedDevice
@@ -33,7 +33,7 @@ namespace YMM_REC_Plugin
             }
         }
 
-        private string recordingStatus = "停止中";
+        private string recordingStatus = "待機中";
         public string RecordingStatus
         {
             get => recordingStatus;
@@ -83,6 +83,7 @@ namespace YMM_REC_Plugin
             StartRecordingCommand = new RelayCommand(StartRecording, CanStartRecording);
             StopRecordingCommand = new RelayCommand(StopRecording, CanStopRecording);
             RefreshDevicesCommand = new RelayCommand(RefreshMicrophones);
+            OpenRecordingWindowCommand = new RelayCommand(OpenRecordingWindow, CanOpenRecordingWindow);
 
             RecordsDirectory = recordPathService.GetRecordsDirectory();
             RefreshMicrophones();
@@ -92,6 +93,7 @@ namespace YMM_REC_Plugin
 
         public void RefreshMicrophones()
         {
+            LogService.Write("ToolView: RefreshMicrophones");
             AvailableDevices.Clear();
 
             foreach (var deviceName in recordingService.GetAvailableDeviceNames())
@@ -103,11 +105,13 @@ namespace YMM_REC_Plugin
             {
                 if (SelectedDevice is null || !AvailableDevices.Contains(SelectedDevice))
                     SelectedDevice = AvailableDevices[0];
+                LogService.Write($"ToolView: Devices found. count={AvailableDevices.Count}, selected={SelectedDevice}");
             }
             else
             {
                 SelectedDevice = null;
                 RecordingStatus = "録音デバイスが見つかりません。";
+                LogService.Write("ToolView: No devices found");
             }
 
             RaiseCommandStates();
@@ -117,75 +121,83 @@ namespace YMM_REC_Plugin
 
         private bool CanStopRecording() => IsRecording;
 
+        private bool CanOpenRecordingWindow() => !IsRecording;
+
         private void StartRecording()
         {
             if (SelectedDevice is null)
             {
                 RecordingStatus = "録音デバイスを選択してください。";
+                LogService.Write("ToolView: StartRecording blocked. device not selected");
                 return;
             }
 
             try
             {
+                LogService.Write($"ToolView: StartRecording requested. device={SelectedDevice}");
                 recordingService.StartRecording(SelectedDevice);
                 RecordingStatus = $"録音中... 保存先: {RecordsDirectory}";
             }
             catch (Exception ex)
             {
                 RecordingStatus = $"録音開始に失敗しました: {ex.Message}";
+                LogService.Write("ToolView: StartRecording failed", ex);
                 RaiseCommandStates();
             }
         }
 
         private async void StopRecording()
         {
-            await StopRecordingAsync();
-        }
-
-        private async Task StopRecordingAsync()
-        {
-            RecordedFileInfo? recordedFile;
-
             try
             {
-                recordedFile = recordingService.StopRecording();
+                LogService.Write("ToolView: StopRecording requested");
+                var recordedFile = recordingService.StopRecording();
+
+                CurrentVolume = 0;
+                RaiseCommandStates();
+
+                if (recordedFile is null)
+                {
+                    RecordingStatus = "録音データがありません。保存をスキップしました。";
+                    LogService.Write("ToolView: StopRecording returned null");
+                    return;
+                }
+
+                if (recordedFile.DataLength <= 0)
+                {
+                    RecordingStatus = $"録音データ長が 0 のため追加しませんでした: {recordedFile.FilePath}";
+                    LogService.Write($"ToolView: StopRecording dataLength=0. file={recordedFile.FilePath}");
+                    return;
+                }
+
+                RecordingStatus = $"録音停止。タイムラインへ追加中... {recordedFile.FilePath}";
+
+                await timelineInsertService.InsertAsync(recordedFile);
+                RecordingStatus = $"録音停止。タイムラインへ追加しました: {recordedFile.FilePath}";
+                LogService.Write($"ToolView: Audio timeline insert completed. file={recordedFile.FilePath}");
             }
             catch (Exception ex)
             {
                 RecordingStatus = $"録音停止に失敗しました: {ex.Message}";
-                RaiseCommandStates();
-                return;
-            }
-
-            CurrentVolume = 0;
-            RaiseCommandStates();
-
-            if (recordedFile is null)
-            {
-                RecordingStatus = "録音データがないため保存・追加を行いませんでした。";
-                return;
-            }
-
-            if (recordedFile.DataLength <= 0)
-            {
-                RecordingStatus = $"録音データ長が 0 のため追加しませんでした: {recordedFile.FilePath}";
-                return;
-            }
-
-            RecordingStatus = $"録音停止。タイムラインへ追加中... {recordedFile.FilePath}";
-
-            try
-            {
-                await timelineInsertService.InsertAsync(recordedFile);
-                RecordingStatus = $"録音停止。タイムラインへ追加しました: {recordedFile.FilePath}";
-            }
-            catch (Exception ex)
-            {
-                RecordingStatus = $"タイムライン追加に失敗しました: {ex.Message}";
+                LogService.Write("ToolView: StopRecording failed", ex);
             }
         }
 
-        private void OnRecordingDataAvailable(object? sender, RecordingDataEventArgs e)
+        private void OpenRecordingWindow()
+        {
+            var selectionService = new TimelineSelectionService();
+            var serif = selectionService.TryGetSelectedSerif();
+            LogService.Write($"ToolView: OpenRecordingWindow. selectedSerifLength={serif?.Length ?? 0}");
+            var window = new RecordingWindow(null)
+            {
+                Owner = Application.Current?.MainWindow,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            window.ShowDialog();
+            LogService.Write("ToolView: RecordingWindow closed");
+        }
+
+        private void OnRecordingDataAvailable(object? sender, Models.RecordingDataEventArgs e)
         {
             CurrentVolume = e.Volume;
         }
@@ -199,6 +211,7 @@ namespace YMM_REC_Plugin
         public void SetTimelineToolInfo(TimelineToolInfo info)
         {
             TimelineInstance = info.Timeline;
+            LogService.Write("ToolView: TimelineInstance set");
         }
 
         private void RaiseCommandStates()
@@ -208,6 +221,9 @@ namespace YMM_REC_Plugin
 
             if (StopRecordingCommand is RelayCommand stop)
                 stop.RaiseCanExecuteChanged();
+
+            if (OpenRecordingWindowCommand is RelayCommand open)
+                open.RaiseCanExecuteChanged();
         }
 
         private void OnPropertyChanged(string propertyName)

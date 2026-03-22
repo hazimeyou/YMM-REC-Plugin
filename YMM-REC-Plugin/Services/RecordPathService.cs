@@ -13,6 +13,7 @@ namespace YMM_REC_Plugin.Services
 
             var recordsDirectory = Path.Combine(assemblyDirectory, "Records");
             Directory.CreateDirectory(recordsDirectory);
+            LogService.Write($"RecordPathService: RecordsDirectory={recordsDirectory}");
             return recordsDirectory;
         }
 
@@ -29,6 +30,7 @@ namespace YMM_REC_Plugin.Services
                 sequence++;
             }
 
+            LogService.Write($"RecordPathService: CreateRecordFilePath={filePath}");
             return filePath;
         }
     }

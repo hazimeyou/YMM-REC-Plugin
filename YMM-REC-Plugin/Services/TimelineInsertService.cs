@@ -20,6 +20,8 @@ namespace YMM_REC_Plugin.Services
             if (!File.Exists(recordedFile.FilePath))
                 throw new FileNotFoundException("保存済み wav ファイルが見つかりません。", recordedFile.FilePath);
 
+            LogService.Write($"AudioTimelineInsert: start. file={recordedFile.FilePath}");
+
             var dispatcher = Application.Current?.Dispatcher
                 ?? throw new InvalidOperationException("UI Dispatcher を取得できません。");
 
@@ -29,8 +31,11 @@ namespace YMM_REC_Plugin.Services
                 if (timeline is not null)
                 {
                     InsertWithTimeline(timeline, recordedFile.FilePath);
+                    LogService.Write("AudioTimelineInsert: completed via direct timeline");
                     return;
                 }
+
+                LogService.Write("AudioTimelineInsert: TimelineInstance null. fallback reflection path");
 
                 var mainViewModel = Application.Current?.MainWindow?.DataContext
                     ?? throw new InvalidOperationException("MainViewModel を取得できません。");
@@ -42,6 +47,7 @@ namespace YMM_REC_Plugin.Services
                 var length = GetLengthFrames(fallbackTimeline, recordedFile.FilePath);
                 var audioItem = CreateAudioItem(recordedFile.FilePath, currentFrame, length);
                 TryAddItem(fallbackTimeline, audioItem, currentFrame, length);
+                LogService.Write("AudioTimelineInsert: completed via reflection");
             }).Task;
         }
 
@@ -58,7 +64,9 @@ namespace YMM_REC_Plugin.Services
 
             var added = timeline.TryAddItems(new IItem[] { audioItem }, audioItem.Frame, audioItem.Layer);
             if (!added)
-                throw new InvalidOperationException("タイムラインへの音声追加に失敗しました。");
+                throw new InvalidOperationException("タイムラインへの追加に失敗しました。");
+
+            LogService.Write($"AudioTimelineInsert: TryAddItems success. frame={audioItem.Frame}, length={audioItem.Length}");
         }
 
         private static int GetLengthFrames(object timeline, string filePath)
@@ -98,7 +106,6 @@ namespace YMM_REC_Plugin.Services
             }
             catch
             {
-                // fallback
             }
 
             return fallbackFps;
@@ -158,7 +165,7 @@ namespace YMM_REC_Plugin.Services
         private static object CreateAudioItem(string filePath, int frame, int length)
         {
             var audioItemType = Type.GetType("YukkuriMovieMaker.Project.Items.AudioItem, YukkuriMovieMaker")
-                ?? throw new InvalidOperationException("AudioItem 型を取得できません。");
+                ?? throw new InvalidOperationException("AudioItem を取得できません。");
 
             object audioItem;
 
@@ -170,7 +177,7 @@ namespace YMM_REC_Plugin.Services
             else
             {
                 audioItem = Activator.CreateInstance(audioItemType)
-                    ?? throw new InvalidOperationException("AudioItem を生成できません。");
+                    ?? throw new InvalidOperationException("AudioItem を作成できません。");
                 audioItemType.GetProperty("FilePath")?.SetValue(audioItem, filePath);
             }
 
@@ -184,7 +191,7 @@ namespace YMM_REC_Plugin.Services
         {
             var timelineType = timeline.GetType();
             var itemInterfaceType = timelineType.Assembly.GetType("YukkuriMovieMaker.Project.Items.IItem")
-                ?? throw new InvalidOperationException("IItem 型を取得できません。");
+                ?? throw new InvalidOperationException("IItem を取得できません。");
 
             var itemArray = Array.CreateInstance(itemInterfaceType, 1);
             itemArray.SetValue(audioItem, 0);
@@ -200,7 +207,7 @@ namespace YMM_REC_Plugin.Services
             {
                 var added = (bool)tryAddItems.Invoke(timeline, new object[] { itemArray, frame, 0 })!;
                 if (!added)
-                    throw new InvalidOperationException("タイムラインへの音声追加に失敗しました。");
+                    throw new InvalidOperationException("タイムラインへの追加に失敗しました。");
                 return;
             }
 

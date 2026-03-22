@@ -4,13 +4,21 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="240"
-             d:DesignWidth="420">
+             d:DesignHeight="320"
+             d:DesignWidth="460">
     <Grid Background="White" Margin="8">
         <StackPanel Margin="4">
+            <TextBlock Text="収録UI" Margin="2,2,2,0" />
+            <Button Content="収録UIを開く"
+                    Command="{Binding OpenRecordingWindowCommand}"
+                    Width="140"
+                    Margin="2,4,2,8" />
+
+            <Separator Margin="0,8,0,8" />
+
             <TextBlock Text="録音デバイス" Margin="2,2,2,0" />
             <DockPanel Margin="2">
-                <Button Content="再読込"
+                <Button Content="更新"
                         Command="{Binding RefreshDevicesCommand}"
                         Width="70"
                         Margin="8,0,0,0"
@@ -20,7 +28,7 @@
                           MinWidth="260" />
             </DockPanel>
 
-            <TextBlock Text="録音仕様: WAV / 48000 Hz / 16 bit / Mono" Margin="2,10,2,0" />
+            <TextBlock Text="録音形式: WAV / 48000 Hz / 16 bit / Mono" Margin="2,10,2,0" />
             <TextBlock Text="{Binding RecordsDirectory, StringFormat=保存先: {0}}" TextWrapping="Wrap" Margin="2,4,2,0" />
 
             <StackPanel Orientation="Horizontal" Margin="2,12,2,0">

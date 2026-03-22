@@ -1,0 +1,35 @@
+<Window x:Class="YMM_REC_Plugin.RecordingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="1セリフ収録"
+        Width="520"
+        Height="360"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="タイムラインで選択中のセリフを使用します。" />
+
+        <Border Grid.Row="1" Margin="0,10,0,0" Padding="10" Background="#FFEFEFEF" CornerRadius="6">
+            <TextBlock Text="{Binding DisplayText}"
+                       FontSize="20"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel Grid.Row="2" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Button Content="録音開始" Command="{Binding StartRecordingCommand}" Width="120" Margin="0,0,8,0" />
+                <Button Content="録音停止" Command="{Binding StopRecordingCommand}" Width="120" Margin="0,0,8,0" />
+                <Button Content="タイムラインへ追加" Command="{Binding AddToTimelineCommand}" Width="140" />
+            </StackPanel>
+
+            <TextBlock Text="{Binding Status}" Foreground="Red" FontWeight="Bold" Margin="0,0,0,6" />
+            <TextBlock Text="入力レベル" />
+            <ProgressBar Minimum="0" Maximum="1" Value="{Binding CurrentVolume}" Height="16" Margin="0,4,0,0" />
+        </StackPanel>
+    </Grid>
+</Window>

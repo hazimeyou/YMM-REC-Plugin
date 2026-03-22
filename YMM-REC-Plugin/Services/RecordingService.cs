@@ -2,6 +2,7 @@ using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using YMM_REC_Plugin.Models;
 
 namespace YMM_REC_Plugin.Services
@@ -21,6 +22,7 @@ namespace YMM_REC_Plugin.Services
         private DateTime recordingStartedAt;
         private long recordedBytes;
         private Exception? recordingStopException;
+        private readonly ManualResetEventSlim recordingStoppedEvent = new(false);
 
         public RecordingService(RecordPathService recordPathService)
         {
@@ -51,9 +53,13 @@ namespace YMM_REC_Plugin.Services
 
                 var deviceIndex = FindDeviceIndex(deviceName);
                 if (deviceIndex < 0)
+                {
+                    LogService.Write($"StartRecording: device not found. deviceName={deviceName}");
                     throw new InvalidOperationException($"録音デバイスを取得できません: {deviceName}");
+                }
 
                 var filePath = recordPathService.CreateRecordFilePath();
+                LogService.Write($"StartRecording: deviceName={deviceName}, deviceIndex={deviceIndex}, filePath={filePath}");
 
                 try
                 {
@@ -74,13 +80,16 @@ namespace YMM_REC_Plugin.Services
                     recordingStartedAt = DateTime.Now;
                     recordedBytes = 0;
                     recordingStopException = null;
+                    recordingStoppedEvent.Reset();
                     IsRecording = true;
                     OnRecordingStateChanged();
 
                     input.StartRecording();
+                    LogService.Write("StartRecording: started");
                 }
-                catch
+                catch (Exception ex)
                 {
+                    LogService.Write("StartRecording: failed", ex);
                     CleanupRecordingResources(deleteFile: true);
                     throw;
                 }
@@ -96,6 +105,7 @@ namespace YMM_REC_Plugin.Services
 
                 try
                 {
+                    LogService.Write("StopRecording: requested");
                     var filePath = currentFilePath;
                     var startedAt = recordingStartedAt;
                     var dataLength = recordedBytes;
@@ -105,10 +115,13 @@ namespace YMM_REC_Plugin.Services
                     if (recordingStopException is not null)
                         throw new InvalidOperationException("録音停止に失敗しました。", recordingStopException);
 
-                    return CreateRecordedFileInfo(filePath, startedAt, dataLength);
+                    var info = CreateRecordedFileInfo(filePath, startedAt, dataLength);
+                    LogService.Write($"StopRecording: completed. filePath={filePath}, dataLength={dataLength}");
+                    return info;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    LogService.Write("StopRecording: failed", ex);
                     CleanupRecordingResources(deleteFile: false);
                     throw;
                 }
@@ -147,6 +160,8 @@ namespace YMM_REC_Plugin.Services
             lock (syncRoot)
             {
                 recordingStopException = e.Exception;
+                if (recordingStopException is not null)
+                    LogService.Write("OnRecordingStopped: exception", recordingStopException);
                 CleanupRecordingResources(deleteFile: false);
             }
         }
@@ -211,6 +226,7 @@ namespace YMM_REC_Plugin.Services
 
             if (deleteFile && !string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
             {
+                LogService.Write($"CleanupRecordingResources: deleting file {filePath}");
                 File.Delete(filePath);
             }
         }
