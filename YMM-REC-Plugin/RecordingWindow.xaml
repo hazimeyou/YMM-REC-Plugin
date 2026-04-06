@@ -25,6 +25,8 @@
                 <Button Content="録音開始" Command="{Binding StartRecordingCommand}" Width="120" Margin="0,0,8,0" />
                 <Button Content="録音停止" Command="{Binding StopRecordingCommand}" Width="120" Margin="0,0,8,0" />
                 <Button Content="タイムラインへ追加" Command="{Binding AddToTimelineCommand}" Width="140" />
+                <Button Content="再生成" Command="{Binding RegenerateCommand}" Width="120" Margin="0,0,8,0" />
+                <Button Content="再生" Command="{Binding PlayCommand}" Width="80" Margin="0,0,8,0" />
             </StackPanel>
 
             <TextBlock Text="{Binding Status}" Foreground="Red" FontWeight="Bold" Margin="0,0,0,6" />

@@ -10,6 +10,7 @@ namespace YMM_REC_Plugin.Services
         private static readonly object SyncRoot = new();
         private static readonly string LogDirectory = GetLogDirectory();
         private static readonly string LogFilePath = Path.Combine(LogDirectory, "YMM-REC-Plugin.log");
+        private static readonly bool DebugEnabled = GetDebugEnabled();
         private static bool initialized;
 
         static LogService()
@@ -19,22 +20,32 @@ namespace YMM_REC_Plugin.Services
 
         public static void Write(string message)
         {
-            WriteInternal(message, null);
+            WriteInternal("INFO", message, null);
         }
 
         public static void Write(string message, Exception exception)
         {
-            WriteInternal(message, exception);
+            WriteInternal("ERROR", message, exception);
         }
 
-        private static void WriteInternal(string message, Exception? exception)
+        public static void Debug(string message)
+        {
+            if (!DebugEnabled)
+                return;
+
+            WriteInternal("DEBUG", message, null);
+        }
+
+        public static bool IsDebugEnabled => DebugEnabled;
+
+        private static void WriteInternal(string level, string message, Exception? exception)
         {
             try
             {
                 EnsureInitialized();
                 var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
                 var builder = new StringBuilder();
-                builder.Append('[').Append(timestamp).Append("] ").Append(message);
+                builder.Append('[').Append(timestamp).Append("] [").Append(level).Append("] ").Append(message);
                 if (exception is not null)
                 {
                     builder.Append(" | ").Append(exception.GetType().Name).Append(": ").Append(exception.Message);
@@ -77,6 +88,14 @@ namespace YMM_REC_Plugin.Services
             catch
             {
             }
+        }
+
+        private static bool GetDebugEnabled()
+        {
+            var flag = Environment.GetEnvironmentVariable("YMM_REC_LOG_DEBUG");
+            return string.Equals(flag, "1", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(flag, "true", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(flag, "yes", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string GetLogDirectory()

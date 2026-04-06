@@ -17,12 +17,12 @@ namespace YMM_REC_Plugin.Services
                             ?? GetStringProperty(item, "Text");
                 if (!string.IsNullOrWhiteSpace(serif))
                 {
-                    LogService.Write($"TimelineSelection: found serif. type={item.GetType().FullName}, length={serif.Length}");
+                    LogService.Debug($"TimelineSelection: found serif. type={item.GetType().FullName}, length={serif.Length}");
                     return serif;
                 }
             }
 
-            LogService.Write("TimelineSelection: no serif found in selected items");
+            LogService.Debug("TimelineSelection: no serif found in selected items");
             return null;
         }
 
@@ -40,12 +40,12 @@ namespace YMM_REC_Plugin.Services
                     if (!TryGetIntProperty(item, "Layer", out layer))
                         layer = 0;
 
-                    LogService.Write($"TimelineSelection: selected placement frame={frame}, layer={layer}");
+                    LogService.Debug($"TimelineSelection: selected placement frame={frame}, layer={layer}");
                     return true;
                 }
             }
 
-            LogService.Write("TimelineSelection: no placement found in selected items");
+            LogService.Debug("TimelineSelection: no placement found in selected items");
             return false;
         }
 
@@ -58,23 +58,23 @@ namespace YMM_REC_Plugin.Services
                 var timeline = ToolViewModel.TimelineInstance;
                 if (timeline is not null)
                 {
-                    LogService.Write($"TimelineSelection: collecting from TimelineInstance type={timeline.GetType().FullName}");
+                    LogService.Debug($"TimelineSelection: collecting from TimelineInstance type={timeline.GetType().FullName}");
                     CollectFromObject(timeline, result);
                 }
                 else
                 {
-                    LogService.Write("TimelineSelection: TimelineInstance null. fallback to MainViewModel");
+                    LogService.Debug("TimelineSelection: TimelineInstance null. fallback to MainViewModel");
                     var mainViewModel = Application.Current?.MainWindow?.DataContext;
                     if (mainViewModel is not null)
                     {
-                        LogService.Write($"TimelineSelection: collecting from MainViewModel type={mainViewModel.GetType().FullName}");
+                        LogService.Debug($"TimelineSelection: collecting from MainViewModel type={mainViewModel.GetType().FullName}");
                         CollectFromObject(mainViewModel, result);
                         var activeTimelineViewModel = mainViewModel.GetType()
                             .GetProperty("ActiveTimelineViewModel", BindingFlags.Instance | BindingFlags.Public)
                             ?.GetValue(mainViewModel);
                         if (activeTimelineViewModel is not null)
                         {
-                            LogService.Write($"TimelineSelection: collecting from ActiveTimelineViewModel type={activeTimelineViewModel.GetType().FullName}");
+                            LogService.Debug($"TimelineSelection: collecting from ActiveTimelineViewModel type={activeTimelineViewModel.GetType().FullName}");
                             CollectFromObject(activeTimelineViewModel, result);
                         }
                     }
@@ -85,11 +85,14 @@ namespace YMM_REC_Plugin.Services
                 LogService.Write("TimelineSelection: exception while collecting selected items", ex);
             }
 
-            foreach (var item in result)
+            if (LogService.IsDebugEnabled)
             {
-                DumpObjectShape("TimelineSelection: selected item", item);
+                foreach (var item in result)
+                {
+                    DumpObjectShape("TimelineSelection: selected item", item);
+                }
+                LogService.Debug($"TimelineSelection: selected item count={result.Count}");
             }
-            LogService.Write($"TimelineSelection: selected item count={result.Count}");
             return result;
         }
 
@@ -113,7 +116,7 @@ namespace YMM_REC_Plugin.Services
                 if (value is null)
                     continue;
 
-                LogService.Write($"TimelineSelection: found selection property {name} on {source.GetType().FullName}");
+                LogService.Debug($"TimelineSelection: found selection property {name} on {source.GetType().FullName}");
 
                 if (value is IEnumerable enumerable && value is not string)
                 {
@@ -207,7 +210,7 @@ namespace YMM_REC_Plugin.Services
         private static void DumpObjectShape(string prefix, object instance)
         {
             var type = instance.GetType();
-            LogService.Write($"{prefix}: type={type.FullName}");
+            LogService.Debug($"{prefix}: type={type.FullName}");
 
             foreach (var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
@@ -215,13 +218,13 @@ namespace YMM_REC_Plugin.Services
                     continue;
 
                 var valueSummary = TryFormatValue(prop, instance);
-                LogService.Write($"{prefix}: prop {prop.Name} ({prop.PropertyType.FullName}) = {valueSummary}");
+                LogService.Debug($"{prefix}: prop {prop.Name} ({prop.PropertyType.FullName}) = {valueSummary}");
             }
 
             foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
                 var valueSummary = TryFormatValue(field, instance);
-                LogService.Write($"{prefix}: field {field.Name} ({field.FieldType.FullName}) = {valueSummary}");
+                LogService.Debug($"{prefix}: field {field.Name} ({field.FieldType.FullName}) = {valueSummary}");
             }
         }
 

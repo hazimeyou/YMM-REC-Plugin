@@ -18,6 +18,7 @@ namespace YMM_REC_Plugin
 
     public class RecordingWindowViewModel : INotifyPropertyChanged
     {
+        private readonly RecordPathService recordPathService;
         private readonly RecordingService recordingService;
         private readonly VoiceTimelineInsertService voiceTimelineInsertService;
         private readonly TimelineSelectionService timelineSelectionService;
@@ -28,10 +29,13 @@ namespace YMM_REC_Plugin
         private double currentVolume;
         private RecordingDialogState state = RecordingDialogState.Idle;
         private bool commandsReady;
+        private WaveOutEvent? playbackOutput;
+        private AudioFileReader? playbackReader;
+        private bool isPlaying;
 
         public RecordingWindowViewModel(string? initialText)
         {
-            var recordPathService = new RecordPathService();
+            recordPathService = new RecordPathService();
             recordingService = new RecordingService(recordPathService);
             voiceTimelineInsertService = new VoiceTimelineInsertService();
             timelineSelectionService = new TimelineSelectionService();
@@ -40,6 +44,8 @@ namespace YMM_REC_Plugin
             StartRecordingCommand = new RelayCommand(StartRecording, CanStartRecording);
             StopRecordingCommand = new RelayCommand(StopRecording, CanStopRecording);
             AddToTimelineCommand = new RelayCommand(AddToTimeline, CanAddToTimeline);
+            RegenerateCommand = new RelayCommand(Regenerate, CanRegenerate);
+            PlayCommand = new RelayCommand(Play, CanPlay);
 
             if (!string.IsNullOrWhiteSpace(initialText))
             {
@@ -55,6 +61,15 @@ namespace YMM_REC_Plugin
 
             recordingService.DataAvailable += OnRecordingDataAvailable;
             recordingService.RecordingStateChanged += OnRecordingStateChanged;
+
+            var silentPath = recordPathService.GetOrCreateSilentWavPath(TimeSpan.FromSeconds(5));
+            if (!string.IsNullOrWhiteSpace(silentPath))
+            {
+                scriptItem.AudioFilePath = silentPath;
+                scriptItem.Duration = TimeSpan.FromSeconds(5);
+                scriptItem.CreatedAt = DateTime.Now;
+                scriptItem.IsRecorded = false;
+            }
 
             commandsReady = true;
             RaiseCommandStates();
@@ -111,6 +126,8 @@ namespace YMM_REC_Plugin
         public RelayCommand StartRecordingCommand { get; }
         public RelayCommand StopRecordingCommand { get; }
         public RelayCommand AddToTimelineCommand { get; }
+        public RelayCommand RegenerateCommand { get; }
+        public RelayCommand PlayCommand { get; }
 
         private bool CanStartRecording() => State != RecordingDialogState.Recording && !string.IsNullOrWhiteSpace(ScriptText);
 
@@ -118,8 +135,20 @@ namespace YMM_REC_Plugin
 
         private bool CanAddToTimeline() => State == RecordingDialogState.Recorded;
 
+        private bool CanRegenerate() => State != RecordingDialogState.Recording && !string.IsNullOrWhiteSpace(ScriptText);
+
+        private bool CanPlay()
+        {
+            if (State == RecordingDialogState.Recording || isPlaying)
+                return false;
+
+            return !string.IsNullOrWhiteSpace(scriptItem.AudioFilePath) && File.Exists(scriptItem.AudioFilePath);
+        }
+
         private void StartRecording()
         {
+            StopPlayback();
+
             if (string.IsNullOrWhiteSpace(ScriptText))
             {
                 ScriptText = timelineSelectionService.TryGetSelectedSerif() ?? string.Empty;
@@ -194,6 +223,89 @@ namespace YMM_REC_Plugin
             }
         }
 
+        private void Regenerate()
+        {
+            StopPlayback();
+            var silentPath = recordPathService.GetOrCreateSilentWavPath(TimeSpan.FromSeconds(5));
+            if (!string.IsNullOrWhiteSpace(silentPath))
+            {
+                scriptItem.AudioFilePath = silentPath;
+                scriptItem.Duration = TimeSpan.FromSeconds(5);
+                scriptItem.CreatedAt = DateTime.Now;
+                scriptItem.IsRecorded = false;
+            }
+
+            LogService.Write("RecordingWindow: Regenerate requested");
+            StartRecording();
+        }
+
+        private void Play()
+        {
+            if (string.IsNullOrWhiteSpace(scriptItem.AudioFilePath) || !File.Exists(scriptItem.AudioFilePath))
+            {
+                Status = "再生できる音声がありません";
+                LogService.Write("RecordingWindow: Play blocked. audio missing");
+                return;
+            }
+
+            try
+            {
+                StopPlayback();
+                playbackReader = new AudioFileReader(scriptItem.AudioFilePath);
+                playbackOutput = new WaveOutEvent();
+                playbackOutput.PlaybackStopped += OnPlaybackStopped;
+                playbackOutput.Init(playbackReader);
+                playbackOutput.Play();
+                isPlaying = true;
+                Status = "再生中...";
+                RaiseCommandStates();
+                LogService.Write($"RecordingWindow: Play requested. file={scriptItem.AudioFilePath}");
+            }
+            catch (Exception ex)
+            {
+                Status = $"再生に失敗: {ex.Message}";
+                LogService.Write("RecordingWindow: Play failed", ex);
+                StopPlayback();
+            }
+        }
+
+        private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
+        {
+            StopPlayback();
+
+            if (e.Exception is not null)
+            {
+                Status = $"再生エラー: {e.Exception.Message}";
+                LogService.Write("RecordingWindow: PlaybackStopped error", e.Exception);
+                return;
+            }
+
+            Status = "再生完了";
+        }
+
+        private void StopPlayback()
+        {
+            if (playbackOutput is not null)
+            {
+                playbackOutput.PlaybackStopped -= OnPlaybackStopped;
+                playbackOutput.Stop();
+                playbackOutput.Dispose();
+                playbackOutput = null;
+            }
+
+            if (playbackReader is not null)
+            {
+                playbackReader.Dispose();
+                playbackReader = null;
+            }
+
+            if (isPlaying)
+            {
+                isPlaying = false;
+                RaiseCommandStates();
+            }
+        }
+
         private async void AddToTimeline()
         {
             try
@@ -234,6 +346,8 @@ namespace YMM_REC_Plugin
             StartRecordingCommand?.RaiseCanExecuteChanged();
             StopRecordingCommand?.RaiseCanExecuteChanged();
             AddToTimelineCommand?.RaiseCanExecuteChanged();
+            RegenerateCommand?.RaiseCanExecuteChanged();
+            PlayCommand?.RaiseCanExecuteChanged();
         }
 
         private void OnPropertyChanged(string propertyName)

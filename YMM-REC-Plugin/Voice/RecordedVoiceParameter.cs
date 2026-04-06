@@ -18,7 +18,7 @@ namespace YMM_REC_Plugin.Voice
             set
             {
                 text = value ?? string.Empty;
-                LogService.Write($"RecordedVoiceParameter: Text set. length={text.Length}");
+                LogService.Debug($"RecordedVoiceParameter: Text set. length={text.Length}");
             }
         }
 
@@ -31,7 +31,7 @@ namespace YMM_REC_Plugin.Voice
             {
                 audioFilePath = value ?? string.Empty;
                 var exists = string.IsNullOrWhiteSpace(audioFilePath) ? "empty" : (System.IO.File.Exists(audioFilePath) ? "exists" : "missing");
-                LogService.Write($"RecordedVoiceParameter: AudioFilePath set. value={audioFilePath}, status={exists}");
+                LogService.Debug($"RecordedVoiceParameter: AudioFilePath set. value={audioFilePath}, status={exists}");
             }
         }
 

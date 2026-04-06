@@ -72,7 +72,15 @@ namespace YMM_REC_Plugin.Voice
         public IVoiceParameter CreateVoiceParameter()
         {
             LogService.Write("RecordedVoiceSpeaker: CreateVoiceParameter");
-            return new RecordedVoiceParameter();
+            var parameter = new RecordedVoiceParameter();
+            var silentPath = new RecordPathService().GetOrCreateSilentWavPath(TimeSpan.FromSeconds(5));
+            if (!string.IsNullOrWhiteSpace(silentPath))
+            {
+                parameter.AudioFilePath = silentPath;
+                parameter.Duration = TimeSpan.FromSeconds(5);
+                parameter.CreatedAt = DateTime.Now;
+            }
+            return parameter;
         }
 
         public bool IsMatch(string api, string id)
@@ -86,10 +94,21 @@ namespace YMM_REC_Plugin.Voice
             if (parameter is RecordedVoiceParameter recorded)
             {
                 LogService.Write($"RecordedVoiceSpeaker: MigrateParameter recorded. audio={recorded.AudioFilePath}");
+                if (string.IsNullOrWhiteSpace(recorded.AudioFilePath) || !File.Exists(recorded.AudioFilePath))
+                {
+                    var silentPath = new RecordPathService().GetOrCreateSilentWavPath(TimeSpan.FromSeconds(5));
+                    if (!string.IsNullOrWhiteSpace(silentPath))
+                    {
+                        recorded.AudioFilePath = silentPath;
+                        recorded.Duration ??= TimeSpan.FromSeconds(5);
+                        recorded.CreatedAt ??= DateTime.Now;
+                        LogService.Write($"RecordedVoiceSpeaker: MigrateParameter linked silent wav. audio={recorded.AudioFilePath}");
+                    }
+                }
                 return recorded;
             }
 
-            return new RecordedVoiceParameter();
+            return CreateVoiceParameter();
         }
     }
 }
