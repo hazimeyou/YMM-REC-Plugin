@@ -213,7 +213,17 @@ namespace YMM_REC_Plugin
 
                 LogService.Write($"RecordingWindow: AutoAddToTimeline start. textLength={scriptItem.Text.Length}, audio={scriptItem.AudioFilePath}");
                 await voiceTimelineInsertService.InsertAsync(scriptItem);
-                Status = "タイムラインへ追加しました。";
+                State = RecordingDialogState.Idle;
+                if (timelineSelectionService.TryMoveToNextSerif(scriptItem.Text, out var nextSerif) && !string.IsNullOrWhiteSpace(nextSerif))
+                {
+                    ScriptText = nextSerif;
+                    Status = "次のセリフを準備しました。録音開始できます。";
+                    LogService.Write($"RecordingWindow: Next serif prepared. length={nextSerif.Length}");
+                }
+                else
+                {
+                    Status = "タイムラインへ追加しました。続けて録音できます。";
+                }
                 LogService.Write("RecordingWindow: AutoAddToTimeline completed");
             }
             catch (Exception ex)

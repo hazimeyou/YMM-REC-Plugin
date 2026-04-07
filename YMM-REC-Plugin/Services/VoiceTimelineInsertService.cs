@@ -39,9 +39,21 @@ namespace YMM_REC_Plugin.Services
                     selectedLayer = placementLayer;
                 }
 
+                if (TryAttachToPreferredVoiceItem(item, selectionService))
+                {
+                    LogService.Write("VoiceTimelineInsert: attached to preferred VoiceItem");
+                    return;
+                }
+
                 if (TryAttachToSelectedVoiceItem(item))
                 {
                     LogService.Write("VoiceTimelineInsert: attached to selected VoiceItem");
+                    return;
+                }
+
+                if (TryAttachToMatchingVoiceItem(item, selectionService))
+                {
+                    LogService.Write("VoiceTimelineInsert: attached to matching VoiceItem by serif");
                     return;
                 }
 
@@ -89,6 +101,14 @@ namespace YMM_REC_Plugin.Services
                     {
                         item.Text = currentSerif;
                         LogService.Write($"VoiceTimelineInsert: attach uses selected serif. length={item.Text.Length}");
+                    }
+                    else if (!string.IsNullOrWhiteSpace(item.Text)
+                             && !string.IsNullOrWhiteSpace(currentSerif)
+                             && !string.Equals(item.Text, currentSerif, StringComparison.Ordinal))
+                    {
+                        // Prevent overwriting another serif when selection is stale.
+                        LogService.Write($"VoiceTimelineInsert: skip selected attach due to serif mismatch. selected=\"{currentSerif}\", recorded=\"{item.Text}\"");
+                        continue;
                     }
 
                     var voiceParameterProp = selected.GetType().GetProperty("VoiceParameter", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -251,6 +271,149 @@ namespace YMM_REC_Plugin.Services
             }
 
             return false;
+        }
+
+        private static bool TryAttachToMatchingVoiceItem(RecordingScriptItem item, TimelineSelectionService selectionService)
+        {
+            if (string.IsNullOrWhiteSpace(item.Text))
+                return false;
+
+            try
+            {
+                var voiceItems = selectionService.GetVoiceItemsSnapshot();
+                foreach (var candidate in voiceItems)
+                {
+                    var serif = FindProperty(candidate.GetType(), "Serif")?.GetValue(candidate) as string;
+                    if (!string.Equals(serif, item.Text, StringComparison.Ordinal))
+                        continue;
+
+                    var voiceParameter = FindProperty(candidate.GetType(), "VoiceParameter")?.GetValue(candidate);
+                    if (voiceParameter is RecordedVoiceParameter rp)
+                    {
+                        var audio = rp.AudioFilePath ?? string.Empty;
+                        if (!(string.IsNullOrWhiteSpace(audio) || audio.EndsWith("Silent_5s.wav", StringComparison.OrdinalIgnoreCase)))
+                            continue;
+                    }
+
+                    if (TryAttachToVoiceItemCore(item, candidate))
+                        return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Write("VoiceTimelineInsert: TryAttachToMatchingVoiceItem failed", ex);
+            }
+
+            return false;
+        }
+
+        private static bool TryAttachToPreferredVoiceItem(RecordingScriptItem item, TimelineSelectionService selectionService)
+        {
+            if (!TimelineSelectionService.TryGetPreferredVoiceTarget(out var frame, out var layer, out var serif))
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(item.Text)
+                && !string.IsNullOrWhiteSpace(serif)
+                && !string.Equals(item.Text, serif, StringComparison.Ordinal))
+            {
+                LogService.Write($"VoiceTimelineInsert: skip preferred attach due to serif mismatch. preferred=\"{serif}\", recorded=\"{item.Text}\"");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(item.Text) && !string.IsNullOrWhiteSpace(serif))
+                item.Text = serif;
+
+            try
+            {
+                var voiceItems = selectionService.GetVoiceItemsSnapshot();
+                foreach (var candidate in voiceItems)
+                {
+                    var candidateFrame = ToInt(FindProperty(candidate.GetType(), "Frame")?.GetValue(candidate));
+                    var candidateLayer = ToInt(FindProperty(candidate.GetType(), "Layer")?.GetValue(candidate));
+                    if (candidateFrame != frame || candidateLayer != layer)
+                        continue;
+
+                    if (!string.IsNullOrWhiteSpace(serif))
+                    {
+                        var candidateSerif = FindProperty(candidate.GetType(), "Serif")?.GetValue(candidate) as string;
+                        if (!string.Equals(candidateSerif, serif, StringComparison.Ordinal))
+                            continue;
+                    }
+
+                    return TryAttachToVoiceItemCore(item, candidate);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogService.Write("VoiceTimelineInsert: TryAttachToPreferredVoiceItem failed", ex);
+            }
+
+            return false;
+        }
+
+        private static bool TryAttachToVoiceItemCore(RecordingScriptItem item, object selected)
+        {
+            try
+            {
+                var serifProp = selected.GetType().GetProperty("Serif", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+                var voiceParameterProp = selected.GetType().GetProperty("VoiceParameter", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                object? targetForParameter = selected;
+
+                if (voiceParameterProp is null)
+                {
+                    var characterProp = selected.GetType().GetProperty("Character", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    var character = characterProp?.GetValue(selected);
+                    if (character is not null)
+                    {
+                        voiceParameterProp = character.GetType().GetProperty("VoiceParameter", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                        targetForParameter = character;
+                    }
+                }
+
+                FieldInfo? voiceParameterField = null;
+                if (voiceParameterProp is null)
+                {
+                    voiceParameterField = selected.GetType().GetField("voiceParameter", BindingFlags.Instance | BindingFlags.NonPublic);
+                    if (voiceParameterField is not null)
+                        targetForParameter = selected;
+                }
+
+                if ((voiceParameterProp is null && voiceParameterField is null) || targetForParameter is null)
+                    return false;
+
+                var existing = voiceParameterProp is not null
+                    ? voiceParameterProp.GetValue(targetForParameter)
+                    : voiceParameterField?.GetValue(targetForParameter);
+                var recorded = existing as RecordedVoiceParameter ?? new RecordedVoiceParameter();
+                recorded.Text = item.Text;
+                recorded.AudioFilePath = item.AudioFilePath;
+                recorded.Duration = item.Duration;
+                recorded.CreatedAt = item.CreatedAt;
+
+                if (voiceParameterProp is not null && voiceParameterProp.CanWrite)
+                    voiceParameterProp.SetValue(targetForParameter, recorded);
+                if (voiceParameterField is not null)
+                    voiceParameterField.SetValue(targetForParameter, recorded);
+
+                if (serifProp is not null && serifProp.CanWrite && !string.IsNullOrWhiteSpace(item.Text))
+                    serifProp.SetValue(selected, item.Text);
+
+                ForceRefreshForVoice(selected, item.Text);
+                if (!ReferenceEquals(targetForParameter, selected) && targetForParameter is not null)
+                    ForceRefreshForVoice(targetForParameter, item.Text);
+
+                UpdateSelectedVoiceItemLength(selected, item);
+                TryRequestVoiceGeneration(selected);
+
+                LogService.Write($"VoiceTimelineInsert: attached parameter(core). audio={recorded.AudioFilePath}, textLength={recorded.Text.Length}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogService.Write("VoiceTimelineInsert: TryAttachToVoiceItemCore failed", ex);
+                return false;
+            }
         }
 
         private static void ForceRefreshForVoice(object target, string text)

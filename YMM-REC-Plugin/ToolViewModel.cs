@@ -13,6 +13,7 @@ namespace YMM_REC_Plugin
     {
         private readonly RecordingService recordingService;
         private readonly TimelineInsertService timelineInsertService;
+        private RecordingWindow? recordingWindow;
 
         public ObservableCollection<string> AvailableDevices { get; } = new();
 
@@ -185,16 +186,33 @@ namespace YMM_REC_Plugin
 
         private void OpenRecordingWindow()
         {
+            if (recordingWindow is not null)
+            {
+                if (recordingWindow.WindowState == WindowState.Minimized)
+                    recordingWindow.WindowState = WindowState.Normal;
+                recordingWindow.Activate();
+                LogService.Write("ToolView: RecordingWindow already open -> Activate");
+                return;
+            }
+
             var selectionService = new TimelineSelectionService();
             var serif = selectionService.TryGetSelectedSerif();
             LogService.Write($"ToolView: OpenRecordingWindow. selectedSerifLength={serif?.Length ?? 0}");
-            var window = new RecordingWindow(null)
+
+            recordingWindow = new RecordingWindow(null)
             {
-                Owner = Application.Current?.MainWindow,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner
+                Owner = null,
+                ShowInTaskbar = true,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                Topmost = false
             };
-            window.ShowDialog();
-            LogService.Write("ToolView: RecordingWindow closed");
+            recordingWindow.Closed += (_, _) =>
+            {
+                LogService.Write("ToolView: RecordingWindow closed");
+                recordingWindow = null;
+            };
+            recordingWindow.Show();
+            recordingWindow.Activate();
         }
 
         private void OnRecordingDataAvailable(object? sender, Models.RecordingDataEventArgs e)
