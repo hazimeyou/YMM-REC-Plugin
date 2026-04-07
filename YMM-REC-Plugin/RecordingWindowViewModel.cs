@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using NAudio.Wave;
 using YMM_REC_Plugin.Models;
 using YMM_REC_Plugin.Services;
@@ -194,7 +195,7 @@ namespace YMM_REC_Plugin
 
                 if (recordedFile is null || recordedFile.DataLength <= 0)
                 {
-                    Status = "録音データがありません。保存をスキップしました。";
+                    Status = "録音データがありません。再度録音してください。";
                     LogService.Write("RecordingWindow: StopRecording returned null or empty");
                     State = RecordingDialogState.Idle;
                     return;
@@ -271,38 +272,58 @@ namespace YMM_REC_Plugin
 
         private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
         {
-            StopPlayback();
-
-            if (e.Exception is not null)
+            void HandlePlaybackStopped()
             {
-                Status = $"再生エラー: {e.Exception.Message}";
-                LogService.Write("RecordingWindow: PlaybackStopped error", e.Exception);
-                return;
+                StopPlayback(skipStopCall: true);
+
+                if (e.Exception is not null)
+                {
+                    Status = $"再生エラー: {e.Exception.Message}";
+                    LogService.Write("RecordingWindow: PlaybackStopped error", e.Exception);
+                    return;
+                }
+
+                Status = "再生完了";
+                LogService.Write("RecordingWindow: PlaybackStopped completed");
             }
 
-            Status = "再生完了";
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess())
+            {
+                HandlePlaybackStopped();
+            }
+            else
+            {
+                _ = dispatcher.BeginInvoke((Action)HandlePlaybackStopped);
+            }
         }
 
-        private void StopPlayback()
+        private void StopPlayback(bool skipStopCall = false)
         {
-            if (playbackOutput is not null)
+            try
             {
-                playbackOutput.PlaybackStopped -= OnPlaybackStopped;
-                playbackOutput.Stop();
-                playbackOutput.Dispose();
-                playbackOutput = null;
-            }
+                if (playbackOutput is not null)
+                {
+                    playbackOutput.PlaybackStopped -= OnPlaybackStopped;
+                    if (!skipStopCall && playbackOutput.PlaybackState == PlaybackState.Playing)
+                        playbackOutput.Stop();
+                    playbackOutput.Dispose();
+                    playbackOutput = null;
+                }
 
-            if (playbackReader is not null)
-            {
-                playbackReader.Dispose();
-                playbackReader = null;
+                if (playbackReader is not null)
+                {
+                    playbackReader.Dispose();
+                    playbackReader = null;
+                }
             }
-
-            if (isPlaying)
+            finally
             {
-                isPlaying = false;
-                RaiseCommandStates();
+                if (isPlaying)
+                {
+                    isPlaying = false;
+                    RaiseCommandStates();
+                }
             }
         }
 
@@ -356,3 +377,4 @@ namespace YMM_REC_Plugin
         }
     }
 }
+
