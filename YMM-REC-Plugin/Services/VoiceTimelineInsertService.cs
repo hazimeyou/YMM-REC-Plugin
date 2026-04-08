@@ -312,6 +312,19 @@ namespace YMM_REC_Plugin.Services
             if (!TimelineSelectionService.TryGetPreferredVoiceTarget(out var frame, out var layer, out var serif))
                 return false;
 
+            // If timeline cursor is far away from preferred target, treat it as stale context.
+            // This avoids accidental overwrite after user manually navigated elsewhere.
+            var timeline = ToolViewModel.TimelineInstance;
+            if (timeline is not null)
+            {
+                var currentFrame = ToInt(FindProperty(timeline.GetType(), "CurrentFrame")?.GetValue(timeline));
+                if (Math.Abs(currentFrame - frame) > 2)
+                {
+                    LogService.Debug($"VoiceTimelineInsert: preferred target ignored as stale. currentFrame={currentFrame}, preferredFrame={frame}");
+                    return false;
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(item.Text)
                 && !string.IsNullOrWhiteSpace(serif)
                 && !string.Equals(item.Text, serif, StringComparison.Ordinal))
@@ -340,7 +353,10 @@ namespace YMM_REC_Plugin.Services
                             continue;
                     }
 
-                    return TryAttachToVoiceItemCore(item, candidate);
+                    if (TryAttachToVoiceItemCore(item, candidate))
+                    {
+                        return true;
+                    }
                 }
             }
             catch (Exception ex)

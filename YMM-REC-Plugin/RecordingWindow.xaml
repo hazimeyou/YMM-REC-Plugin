@@ -2,36 +2,44 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="1セリフ収録"
-        Width="520"
-        Height="360"
+        Width="560"
+        Height="390"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="タイムラインで選択中のセリフを使用します。" />
+        <TextBlock Text="タイムラインで選択中のセリフを使用します。"/>
 
-        <Border Grid.Row="1" Margin="0,10,0,0" Padding="10" Background="#FFEFEFEF" CornerRadius="6">
+        <Border Grid.Row="1" Margin="0,8,0,0" Padding="10" Background="#FFEFEFEF" CornerRadius="6">
             <TextBlock Text="{Binding DisplayText}"
                        FontSize="20"
-                       TextWrapping="Wrap" />
+                       TextWrapping="Wrap"/>
         </Border>
 
-        <StackPanel Grid.Row="2" Margin="0,12,0,0">
+        <Border Grid.Row="2" Margin="0,8,0,0" Padding="8" Background="#FFF8F8F8" CornerRadius="6">
+            <TextBlock Text="シンプル録音: 1) 録音開始 2) 録音停止（自動反映） 3) そのまま次を録音"
+                       FontSize="12"
+                       Foreground="#444"
+                       TextWrapping="Wrap"/>
+        </Border>
+
+        <StackPanel Grid.Row="3" Margin="0,12,0,0">
             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                <Button Content="録音開始" Command="{Binding StartRecordingCommand}" Width="120" Margin="0,0,8,0" />
-                <Button Content="録音停止" Command="{Binding StopRecordingCommand}" Width="120" Margin="0,0,8,0" />
-                <Button Content="タイムラインへ追加" Command="{Binding AddToTimelineCommand}" Width="140" />
-                <Button Content="再生成" Command="{Binding RegenerateCommand}" Width="120" Margin="0,0,8,0" />
-                <Button Content="再生" Command="{Binding PlayCommand}" Width="80" Margin="0,0,8,0" />
+                <Button Content="録音開始" Command="{Binding StartRecordingCommand}" Width="110" Margin="0,0,8,0"/>
+                <Button Content="録音停止" Command="{Binding StopRecordingCommand}" Width="110" Margin="0,0,8,0"/>
+                <Button Content="タイムラインへ追加" Command="{Binding AddToTimelineCommand}" Width="130" Margin="0,0,8,0"/>
+                <Button Content="再生成" Command="{Binding RegenerateCommand}" Width="90" Margin="0,0,8,0"/>
+                <Button Content="再生" Command="{Binding PlayCommand}" Width="70"/>
             </StackPanel>
 
-            <TextBlock Text="{Binding Status}" Foreground="Red" FontWeight="Bold" Margin="0,0,0,6" />
-            <TextBlock Text="入力レベル" />
-            <ProgressBar Minimum="0" Maximum="1" Value="{Binding CurrentVolume}" Height="16" Margin="0,4,0,0" />
+            <TextBlock Text="{Binding Status}" Foreground="Red" FontWeight="Bold" Margin="0,0,0,6"/>
+            <TextBlock Text="入力レベル"/>
+            <ProgressBar Minimum="0" Maximum="1" Value="{Binding CurrentVolume}" Height="16" Margin="0,4,0,0"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -14,7 +14,7 @@ namespace YMM_REC_Plugin.Voice
             remove { }
         }
 
-        public string Name => "Recorded Voice";
+        public string Name => "録音プラグイン";
         public string Terms => string.Empty;
         public bool IsDownloaded => true;
         public string FileSize => string.Empty;

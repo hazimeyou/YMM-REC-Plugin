@@ -9,6 +9,7 @@ namespace YMM_REC_Plugin.Services
 {
     public class TimelineSelectionService
     {
+        private static readonly object preferredVoiceTargetLock = new();
         private static PreferredVoiceTarget? preferredVoiceTarget;
 
         private static readonly string[] SelectionPropertyNames =
@@ -27,14 +28,25 @@ namespace YMM_REC_Plugin.Services
             layer = 0;
             serif = null;
 
-            var target = preferredVoiceTarget;
-            if (target is null)
-                return false;
+            lock (preferredVoiceTargetLock)
+            {
+                var target = preferredVoiceTarget;
+                if (target is null)
+                    return false;
 
-            frame = target.Frame;
-            layer = target.Layer;
-            serif = target.Serif;
-            return true;
+                frame = target.Frame;
+                layer = target.Layer;
+                serif = target.Serif;
+                return true;
+            }
+        }
+
+        public static void ClearPreferredVoiceTarget()
+        {
+            lock (preferredVoiceTargetLock)
+            {
+                preferredVoiceTarget = null;
+            }
         }
 
         public string? TryGetSelectedSerif()
@@ -114,6 +126,7 @@ namespace YMM_REC_Plugin.Services
                 var currentIndex = FindCurrentIndex(voiceItems, selected, currentSerif, currentFrame);
                 if (currentIndex < 0 || currentIndex >= voiceItems.Count - 1)
                 {
+                    ClearPreferredVoiceTarget();
                     LogService.Debug($"TimelineSelection: TryMoveToNextSerif no next item. index={currentIndex}, total={voiceItems.Count}, currentFrame={currentFrame}, currentSerifLen={currentSerif?.Length ?? 0}");
                     return false;
                 }
@@ -158,7 +171,10 @@ namespace YMM_REC_Plugin.Services
             if (frame < 0 || layer < 0)
                 return;
 
-            preferredVoiceTarget = new PreferredVoiceTarget(frame, layer, serif);
+            lock (preferredVoiceTargetLock)
+            {
+                preferredVoiceTarget = new PreferredVoiceTarget(frame, layer, serif);
+            }
             LogService.Debug($"TimelineSelection: preferred target updated. frame={frame}, layer={layer}, serifLength={serif.Length}");
         }
 

@@ -13,7 +13,7 @@ namespace YMM_REC_Plugin.Voice
             Services.LogService.Write("RecordedVoicePlugin: static constructor");
         }
 
-        public string Name => "録音済み音声Voice";
+        public string Name => "録音プラグイン";
         public PluginDetailsAttribute Details => new PluginDetailsAttribute
         {
             AuthorName = "YMM-REC-Plugin",

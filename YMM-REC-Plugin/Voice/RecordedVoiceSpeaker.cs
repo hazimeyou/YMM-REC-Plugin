@@ -19,8 +19,8 @@ namespace YMM_REC_Plugin.Voice
             LogService.Write("RecordedVoiceSpeaker: static constructor");
         }
 
-        public string EngineName => "Recorded Voice";
-        public string SpeakerName => "Recorded";
+        public string EngineName => "録音プラグイン";
+        public string SpeakerName => "録音プラグイン";
         public string API => ApiName;
         public string ID => SpeakerId;
         public bool IsVoiceDataCachingRequired => false;
