@@ -9,8 +9,6 @@ namespace YMM_REC_Plugin.Voice
 {
     public class RecordedVoicePronounce : IVoicePronounce, IEditable, INotifyPropertyChanged, IUndoRedoable
     {
-        public LipSyncFrame[] LipSyncFrames { get; set; } = [];
-
         public event PropertyChangedEventHandler? PropertyChanged
         {
             add { }
@@ -25,10 +23,7 @@ namespace YMM_REC_Plugin.Voice
 
         public IVoicePronounce Clone()
         {
-            return new RecordedVoicePronounce
-            {
-                LipSyncFrames = (LipSyncFrame[])LipSyncFrames.Clone()
-            };
+            return new RecordedVoicePronounce();
         }
 
         public void BeginEdit()
