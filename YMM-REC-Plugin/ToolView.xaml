@@ -6,7 +6,7 @@
              mc:Ignorable="d"
              d:DesignHeight="320"
              d:DesignWidth="460">
-    <Grid Background="White" Margin="8">
+    <Grid Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" Margin="8">
         <StackPanel Margin="4">
             <TextBlock Text="収録UI" Margin="2,2,2,0" />
             <Button Content="収録UIを開く"

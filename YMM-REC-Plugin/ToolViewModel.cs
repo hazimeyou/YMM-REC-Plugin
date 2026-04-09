@@ -204,7 +204,7 @@ namespace YMM_REC_Plugin
                 Owner = null,
                 ShowInTaskbar = true,
                 WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                Topmost = false
+                Topmost = true
             };
             recordingWindow.Closed += (_, _) =>
             {

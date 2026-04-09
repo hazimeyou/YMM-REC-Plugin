@@ -4,6 +4,8 @@
         Title="1セリフ収録"
         Width="560"
         Height="390"
+        Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}"
+        ResizeMode="CanMinimize"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -15,16 +17,16 @@
 
         <TextBlock Text="タイムラインで選択中のセリフを使用します。"/>
 
-        <Border Grid.Row="1" Margin="0,8,0,0" Padding="10" Background="#FFEFEFEF" CornerRadius="6">
+        <Border Grid.Row="1" Margin="0,8,0,0" Padding="10" Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" CornerRadius="6">
             <TextBlock Text="{Binding DisplayText}"
                        FontSize="20"
                        TextWrapping="Wrap"/>
         </Border>
 
-        <Border Grid.Row="2" Margin="0,8,0,0" Padding="8" Background="#FFF8F8F8" CornerRadius="6">
+        <Border Grid.Row="2" Margin="0,8,0,0" Padding="8" Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}" CornerRadius="6">
             <TextBlock Text="シンプル録音: 1) 録音開始 2) 録音停止（自動反映） 3) そのまま次を録音"
                        FontSize="12"
-                       Foreground="#444"
+                       Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
                        TextWrapping="Wrap"/>
         </Border>
 
